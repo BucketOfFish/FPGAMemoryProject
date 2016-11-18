@@ -4,8 +4,7 @@ module BlockMemoryStorage(
     readMemory,
     storageReady,
     newAddress,
-    wordIndex,
-    letterIndex,
+    address,
     readReady,
     //inquiry,
     //inquiryWordIndex,
@@ -15,9 +14,10 @@ module BlockMemoryStorage(
 
 `include "MyParameters.vh"
 
-input clock, clearMemory, readMemory, newAddress; //inquiry;
-input [ROWINDEXBITS-1:0] wordIndex; //inquiryWordIndex;
-input [COLINDEXBITS-1:0] letterIndex; //inquiryLetterIndex;
+input clock, clearMemory, readMemory, newAddress;
+input [COLINDEXBITS+ROWINDEXBITS-1:0] address;
+reg [ROWINDEXBITS-1:0] wordIndex = 0;
+reg [COLINDEXBITS-1:0] letterIndex = 0;
 output reg storageReady, storedValue, readReady;
 
 reg [WORDLENGTH-1:0] retrievedWord, dataInputA, dataInputB, addToWord, queueNewHits1, queueNewHits2;
@@ -41,6 +41,10 @@ initial begin
 end
 
 always @(posedge clock) begin
+
+    // split address
+    wordIndex[ROWINDEXBITS-1:0] <= address[ROWINDEXBITS+COLINDEXBITS-1:COLINDEXBITS];
+    letterIndex[COLINDEXBITS-1:0] <= address[COLINDEXBITS-1:0];
 
     // reset everything
     writeEnableA = 0;

@@ -6,8 +6,6 @@ module Main();
 
 reg clock, clearMemory, readMemory;
 wire [COLINDEXBITS+ROWINDEXBITS-1:0] address;
-wire [ROWINDEXBITS-1:0] wordIndex;
-wire [COLINDEXBITS-1:0] letterIndex;
 wire storageReady, storedValue, newAddress, readReady;
 //reg inquiry;
 //reg [ROWINDEXBITS-1:0] inquiryWordIndex;
@@ -33,17 +31,9 @@ AddressCounter newCounter(
     .newAddress(newAddress)
     );
 
-AddressSplitter newSplitter(
-    .clock(clock),
-    .address(address),
-    .wordIndex(wordIndex),
-    .letterIndex(letterIndex)
-    );
-
 BlockMemoryStorage newStorage(
     .clock(clock),
-    .wordIndex(wordIndex),
-    .letterIndex(letterIndex),
+    .address(address),
     .newAddress(newAddress),
     //.inquiry(inquiry),
     //.inquiryWordIndex(inquiryWordIndex),
