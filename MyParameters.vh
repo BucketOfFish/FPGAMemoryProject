@@ -1,4 +1,4 @@
-localparam MEMNROWS = 16; // 16 words
-localparam MEMNCOLS = 16; // each word is 16 bits long
-localparam ROWINDEXBITS = 4;
-localparam COLINDEXBITS = 4;
+localparam MEMNROWS = 128;
+localparam MEMNCOLS = 512;
+localparam ROWINDEXBITS = 7;
+localparam COLINDEXBITS = 9;
