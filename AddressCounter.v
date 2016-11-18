@@ -8,7 +8,7 @@ module AddressCounter(
 `include "MyParameters.vh"
 
 input clock, storageReady;
-output reg [COLINDEXBITS+ROWINDEXBITS-1:0] address = WORDLENGTH*MEMNROWS-1;
+output reg [COLINDEXBITS+ROWINDEXBITS-1:0] address = -1;
 output reg newAddress;
 
 reg alreadyLooped = 0;
@@ -19,9 +19,7 @@ reg alreadyLooped = 0;
     //if (storageReady && !alreadyLooped) begin
         //newAddress = 0; // this particular module is always sending stuff to memory, so right now this is not really necessary.
         //address = address + 1;
-        //if (address == WORDLENGTH*MEMNROWS-1) begin
-            //alreadyLooped = 1;
-        //end
+        //if (address == MEMNROWS_HCM-1) alreadyLooped = 1;
         //newAddress = 1;
     //end
 //end
