@@ -93,10 +93,19 @@ always @(posedge clock) begin
     if (storageReady && (newAddress || itemInQueue1 || itemInQueue2)) begin
         storageReady = 0;
         if (!skipNextAddress) begin
-            // if there's a row to be written to, and the current address is not in that row
-            if ((rowIndex != queueRowIndex1) || !itemInQueue1) begin
+            // if there's a new address, and the row of the address is already in queue
+            if (newAddress && ((rowIndex == queueRowIndex1 && itemInQueue1) || (rowIndex == queueRowIndex2 && itemInQueue2))) begin
+                if (rowIndex == queueRowIndex1 && itemInQueue1) begin
+                    queueNewHitsRow1 = queueNewHitsRow1 | 1'b1<<colIndex;
+                end
+                if (rowIndex == queueRowIndex2 && itemInQueue2) begin
+                    queueNewHitsRow2 = queueNewHitsRow2 | 1'b1<<colIndex;
+                end
+            end
+            // no new address, or address is in new row
+            else begin
+                // write queue1 if it exists
                 if (itemInQueue1) begin
-                    // take what's currently in the read output and add in what's in the queue
                     rowIndexA_HNM = queueRowIndex1;
                     dataInputA_HNM = dataOutputB_HNM | queueNewHitsRow1;
                     writeEnableA_HNM = 1;
@@ -109,24 +118,14 @@ always @(posedge clock) begin
                     itemInQueue1 = 1;
                     itemInQueue2 = 0;
                 end
-                // prepare to read row for new address
+                // read new address if it exiss
                 if (newAddress) begin
-                    if ((rowIndex != queueRowIndex1) || !itemInQueue1) begin
-                        rowIndexB_HNM = rowIndex;
-                        queueRowIndex2 = rowIndex;
-                        queueNewHitsRow2 = 1'b1<<colIndex;
-                        queueNewHitsN2 = 1;
-                        itemInQueue2 = 1;
-                    end
-                    // if the address row is already in queue
-                    else begin
-                        queueNewHitsRow1 = queueNewHitsRow1 | 1'b1<<colIndex;
-                    end
+                    rowIndexB_HNM = rowIndex;
+                    queueRowIndex2 = rowIndex;
+                    queueNewHitsRow2 = 1'b1<<colIndex;
+                    queueNewHitsN2 = 1;
+                    itemInQueue2 = 1;
                 end
-            end
-            // if the new address is in the row that's currently about to be written
-            else begin
-                queueNewHitsRow1 = queueNewHitsRow1 | 1'b1<<colIndex;
             end
         end
         else skipNextAddress = 0;
