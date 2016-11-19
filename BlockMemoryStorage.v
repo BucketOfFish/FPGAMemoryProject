@@ -2,29 +2,48 @@ module BlockMemoryStorage(
     clock,
     clearMemory,
     readMemory,
-    storageReady,
     newAddress,
+    storageReady,
     address,
-    readReady,
-    storedValue
+    readReady
     );
 
 `include "MyParameters.vh"
 
+// inputs and outputs
 input clock, clearMemory, readMemory, newAddress;
-input [COLINDEXBITS+ROWINDEXBITS-1:0] address;
-reg [ROWINDEXBITS-1:0] rowIndex = 0;
-reg [COLINDEXBITS-1:0] colIndex = 0;
-output reg storageReady, storedValue, readReady;
+output reg storageReady, readReady;
+input [ADDRESSNBITS-1:0] address;
 
-reg [WORDLENGTH-1:0] retrievedRow, dataInputA_HNM, dataInputB_HNM, addToRow, queueNewHitsRow1, queueNewHitsRow2;
-wire [WORDLENGTH-1:0] dataOutputA_HNM, dataOutputB_HNM;
-reg [ROWINDEXBITS-1:0] rowIndexA_HNM, rowIndexB_HNM, queueRowIndex1, queueRowIndex2;
-reg [COLINDEXBITS+ROWINDEXBITS-1:0] queueAddress1, queueAddress2;
-reg skipNextAddress, writeEnableA_HNM, writeEnableB_HNM, HNMInQueue1, HNMInQueue2, HCMInQueue1, HCMInQueue2;
-integer i, clearingIndex, readingIndex;
-reg [1:0] queueNewHitsN1, queueNewHitsN2;
+// address splitting
+reg [ROWINDEXBITS_HNM-1:0] rowIndex = 0;
+reg [COLINDEXBITS-1:0] colIndex = 0;
+
+// block memory inputs and outputs
 wire enable = 1;
+reg writeEnableA_HNM, writeEnableB_HNM, writeEnableA_HCM, writeEnableB_HCM, writeEnableA_HLM, writeEnableB_HLM;
+reg [ROWINDEXBITS_HNM-1:0] rowIndexA_HNM, rowIndexB_HNM;
+reg [ROWINDEXBITS_HCM-1:0] rowIndexA_HCM, rowIndexB_HCM;
+reg [ROWINDEXBITS_HLM-1:0] rowIndexA_HLM, rowIndexB_HLM;
+reg [COLINDEXBITS_HNM-1:0] dataInputA_HNM, dataInputB_HNM;
+reg [COLINDEXBITS_HCM-1:0] dataInputA_HCM, dataInputB_HCM;
+reg [COLINDEXBITS_HLM-1:0] dataInputA_HLM, dataInputB_HLM;
+wire [COLINDEXBITS_HNM-1:0] dataOutputA_HNM, dataOutputB_HNM;
+wire [COLINDEXBITS_HCM-1:0] dataOutputA_HCM, dataOutputB_HCM;
+wire [COLINDEXBITS_HLM-1:0] dataOutputA_HLM, dataOutputB_HLM;
+
+// queues used for reading and writing
+reg [COLINDEXBITS_HNM-1:0] queueNewHitsRow1_HNM, queueNewHitsRow2_HNM;
+reg [ROWINDEXBITS_HNM-1:0] queueRowIndex1_HNM, queueRowIndex2_HNM;
+reg [ROWINDEXBITS_HLM-1:0] queueAddress1_HCM, queueAddress2_HCM;
+reg [MAXHITNBITS-1:0] queueNewHitsN1_HCM, queueNewHitsN2_HCM;
+reg [COLINDEXBITS_HCM-1:0] queueWriteInfo1_HCM, queueWriteInfo2_HCM;
+reg HNMInQueue1, HNMInQueue2, HCMInQueue1, HCMInQueue2;
+
+// variables for tracking reading, writing, and clearing memory
+reg skipNextAddress;
+integer clearingIndex, readingIndex;
+reg [HLMBITS-1:0] nextAvailableHLM;
 
 initial begin
     storageReady = 1;
@@ -38,12 +57,13 @@ initial begin
     HNMInQueue2 = 0;
     HCMInQueue1 = 0;
     HCMInQueue2 = 0;
+    nextAvailableHLM = 0;
 end
 
 always @(posedge clock) begin
 
     // split address
-    rowIndex[ROWINDEXBITS-1:0] <= address[ROWINDEXBITS+COLINDEXBITS-1:COLINDEXBITS];
+    rowIndex[ROWINDEXBITS_HNM-1:0] <= address[ADDRESSNBITS-1:COLINDEXBITS];
     colIndex[COLINDEXBITS-1:0] <= address[COLINDEXBITS-1:0];
 
     // reset everything
@@ -68,6 +88,7 @@ always @(posedge clock) begin
             writeEnableB_HNM = 1;
         end
         if (clearingIndex >= MEMNROWS_HNM-1) begin
+            nextAvailableHLM = 0;
             clearingIndex = -1;
         end
     end
@@ -93,7 +114,7 @@ always @(posedge clock) begin
 
     // store new address - read from B, write from A
     // if there's a new address or something that still needs to be written
-    if (storageReady && (newAddress || HNMInQueue1 || HNMInQueue2)) begin
+    if (storageReady && (newAddress || HNMInQueue1 || HNMInQueue2 || HCMInQueue1 || HCMInQueue2 || HLMInQueue1 || HLMInQueue2)) begin
         storageReady = 0;
         if (!skipNextAddress) begin
 
@@ -101,77 +122,74 @@ always @(posedge clock) begin
             // HNM - whether the hits at SSIDs are new //
             /////////////////////////////////////////////
 
-            // if there's a new address, and the row of the address is already in queue
-            if (newAddress && ((rowIndex == queueRowIndex1 && HNMInQueue1) || (rowIndex == queueRowIndex2 && HNMInQueue2))) begin
-                if (rowIndex == queueRowIndex1 && HNMInQueue1) begin
-                    queueNewHitsRow1 = queueNewHitsRow1 | 1'b1<<colIndex;
-                end
-                if (rowIndex == queueRowIndex2 && HNMInQueue2) begin
-                    queueNewHitsRow2 = queueNewHitsRow2 | 1'b1<<colIndex;
-                end
+            // write queue1 if it exists
+            if (HNMInQueue1) begin
+                rowIndexA_HNM = queueRowIndex1_HNM;
+                dataInputA_HNM = dataOutputB_HNM | queueNewHitsRow1_HNM;
+                writeEnableA_HNM = 1;
+                HNMInQueue1 = 0;
             end
-            // no new address, or address is in new row
-            else begin
-                // write queue1 if it exists
-                if (HNMInQueue1) begin
-                    rowIndexA_HNM = queueRowIndex1;
-                    dataInputA_HNM = dataOutputB_HNM | queueNewHitsRow1;
-                    writeEnableA_HNM = 1;
-                    HNMInQueue1 = 0;
+            // move queue up
+            if (HNMInQueue2) begin
+                queueRowIndex1_HNM = queueRowIndex2_HNM;
+                queueNewHitsRow1_HNM = queueNewHitsRow2_HNM;
+                HNMInQueue1 = 1;
+                HNMInQueue2 = 0;
+            end
+            // if there's a new address...
+            if (newAddress) begin
+                rowIndexB_HNM = rowIndex;
+                queueRowIndex2_HNM = rowIndex;
+                // if it's in a repeat row
+                if (rowIndex == queueRowIndex1_HNM && HNMInQueue1) begin
+                    queueNewHitsRow1_HNM = queueNewHitsRow1_HNM | 1'b1<<colIndex;
                 end
-                // move queue up
-                if (HNMInQueue2) begin
-                    queueRowIndex1 = queueRowIndex2;
-                    queueNewHitsRow1 = queueNewHitsRow2;
-                    HNMInQueue1 = 1;
-                    HNMInQueue2 = 0;
-                end
-                // read new address if it exists
-                if (newAddress) begin
-                    rowIndexB_HNM = rowIndex;
-                    queueRowIndex2 = rowIndex;
-                    queueNewHitsRow2 = 1'b1<<colIndex;
+                // if address is in new row
+                else begin
+                    queueNewHitsRow2_HNM = 1'b1<<colIndex;
                     HNMInQueue2 = 1;
                 end
             end
 
-            //////////////////////////////////////////////////////////////////////////////////////
-            // HCM - how many hits are at each SSID, and the addresses where the info is stored //
-            //////////////////////////////////////////////////////////////////////////////////////
+            ////////////////////////////////////////////////////////////////////////////////////////
+            //// HCM - how many hits are at each SSID, and the addresses where the info is stored //
+            ////////////////////////////////////////////////////////////////////////////////////////
 
-            // if there's a new address, and the row of the address is already in queue
-            if (newAddress && ((address == queueAddress1 && HCMInQueue1) || (address == queueAddress2 && HCMInQueue2))) begin
-                if (address == queueAddress1 && HCMInQueue1) begin
-                    queueNewHitsN1 = queueNewHitsN1 + 1;
-                end
-                if (address == queueAddress2 && HCMInQueue2) begin
-                    queueNewHitsN2 = queueNewHitsN2 + 1;
-                end
-            end
-            // no new address, or address is in new row
-            else begin
-                // write queue1 if it exists
-                if (HCMInQueue1) begin
-                    rowIndexA_HCM = queueAddress1;
-                    dataInputA_HCM = dataOutputB_HCM + queueNewHitsN1;
-                    writeEnableA_HCM = 1;
-                    HCMInQueue1 = 0;
-                end
-                // move queue up
-                if (HCMInQueue2) begin
-                    queueAddress1 = queueAddress2;
-                    queueNewHitsN1 = queueNewHitsN2;
-                    HCMInQueue1 = 1;
-                    HCMInQueue2 = 0;
-                end
-                // read new address if it exists
-                if (newAddress) begin
-                    rowIndexB_HCM = address;
-                    queueAddress2 = address;
-                    queueNewHitsN2 = 1;
-                    HCMInQueue2 = 1;
-                end
-            end
+            //// write queue1 if it exists
+            //if (HCMInQueue1) begin
+                //rowIndexA_HCM = queueAddress1_HCM;
+                //if (newSSID) begin
+                    //dataInputA_HCM = nextAvailableHLM<<MAXHITNBITS;
+                    //dataInputA_HCM[MAXHITNBITS-1:0] = queueNewHitsN1_HCM;
+                //end
+                //else begin
+                    //dataInputA_HCM = dataOutputB_HCM;
+                    //dataInputA_HCM[MAXHITNBITS-1:0] = queueNewHitsN1_HCM;
+                //end
+                //writeEnableA_HCM = 1;
+                //HCMInQueue1 = 0;
+            //end
+            //// move queue up
+            //if (HCMInQueue2) begin
+                //queueRowIndex1 = queueRowIndex2;
+                //queueAddress1_HCM = queueAddress2_HCM;
+                //HCMInQueue1 = 1;
+                //HCMInQueue2 = 0;
+            //end
+            //// if there's a new address...
+            //if (newAddress) begin
+                //rowIndexB_HCM = rowIndex;
+                //queueRowIndex2 = rowIndex;
+                //// if it's in a repeat row
+                //if (rowIndex == queueRowIndex1 && HCMInQueue1) begin
+                    //queueNewHitsN1_HCM = queueNewHitsN1_HCM + 1;
+                //end
+                //// if address is in new row
+                //else begin
+                    //queueNewHitsN2 = 1;
+                    //HCMInQueue2 = 1;
+                //end
+            //end
 
             //////////////////////
             //// HLM - hit info //
@@ -180,10 +198,10 @@ always @(posedge clock) begin
             //// if there's a new address, and the row of the address is already in queue
             //if (newAddress && ((rowIndex == queueRowIndex1 && HNMInQueue1) || (rowIndex == queueRowIndex2 && HNMInQueue2))) begin
                 //if (rowIndex == queueRowIndex1 && HNMInQueue1) begin
-                    //queueNewHitsRow1 = queueNewHitsRow1 | 1'b1<<colIndex;
+                    //queueNewHitsRow1_HNM = queueNewHitsRow1_HNM | 1'b1<<colIndex;
                 //end
                 //if (rowIndex == queueRowIndex2 && HNMInQueue2) begin
-                    //queueNewHitsRow2 = queueNewHitsRow2 | 1'b1<<colIndex;
+                    //queueNewHitsRow2_HNM = queueNewHitsRow2_HNM | 1'b1<<colIndex;
                 //end
             //end
             //// no new address, or address is in new row
@@ -191,14 +209,14 @@ always @(posedge clock) begin
                 //// write queue1 if it exists
                 //if (HNMInQueue1) begin
                     //rowIndexA_HNM = queueRowIndex1;
-                    //dataInputA_HNM = dataOutputB_HNM | queueNewHitsRow1;
+                    //dataInputA_HNM = dataOutputB_HNM | queueNewHitsRow1_HNM;
                     //writeEnableA_HNM = 1;
                     //HNMInQueue1 = 0;
                 //end
                 //// move queue up
                 //if (HNMInQueue2) begin
                     //queueRowIndex1 = queueRowIndex2;
-                    //queueNewHitsRow1 = queueNewHitsRow2;
+                    //queueNewHitsRow1_HNM = queueNewHitsRow2_HNM;
                     //HNMInQueue1 = 1;
                     //HNMInQueue2 = 0;
                 //end
@@ -206,7 +224,7 @@ always @(posedge clock) begin
                 //if (newAddress) begin
                     //rowIndexB_HNM = rowIndex;
                     //queueRowIndex2 = rowIndex;
-                    //queueNewHitsRow2 = 1'b1<<colIndex;
+                    //queueNewHitsRow2_HNM = 1'b1<<colIndex;
                     //queueNewHitsN2 = 1;
                     //HNMInQueue2 = 1;
                 //end

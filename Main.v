@@ -5,8 +5,8 @@ module Main();
 `include "MyParameters.vh"
 
 reg clock, clearMemory, readMemory;
-wire [COLINDEXBITS+ROWINDEXBITS-1:0] address;
-wire storageReady, storedValue, newAddress, readReady;
+wire [ADDRESSNBITS-1:0] address;
+wire storageReady, newAddress, readReady;
 reg [31:0] randomArray;
 
 initial begin
@@ -35,7 +35,6 @@ BlockMemoryStorage newStorage(
     .readMemory(readMemory),
     .storageReady(storageReady),
     .readReady(readReady),
-    .storedValue(storedValue)
     );
 
 endmodule
