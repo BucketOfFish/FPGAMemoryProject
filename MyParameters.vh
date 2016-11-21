@@ -10,7 +10,7 @@ localparam NROWS_HLM = 8192; // can store this many hits per event (4 hits per S
 localparam ROWINDEXBITS_HLM = $clog2(NROWS_HLM); // 13
 localparam NCOLS_HLM = 32; // information stored about hit
 
-localparam NROWS_HCM = NROWS_HNM * NCOLS_HNM;
+localparam NROWS_HCM = NROWS_HNM * NCOLS_HNM; //65536
 localparam ROWINDEXBITS_HCM = $clog2(NROWS_HCM); // 16
-localparam ADDRESSBITS = ROWINDEXBITS_HCM;
+localparam SSIDBITS = ROWINDEXBITS_HCM;
 localparam NCOLS_HCM = ROWINDEXBITS_HLM + MAXHITNBITS; // info for number of hits, plus address where first hit is stored
