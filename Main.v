@@ -5,7 +5,7 @@ module Main();
 `include "MyParameters.vh"
 
 reg clock, clearMemory, readMemory;
-wire [ADDRESSNBITS-1:0] address;
+wire [ADDRESSBITS-1:0] address;
 wire storageReady, newAddress, readReady;
 reg [31:0] randomArray;
 
@@ -29,12 +29,12 @@ AddressCounter newCounter(
 
 BlockMemoryStorage newStorage(
     .clock(clock),
-    .address(address),
-    .newAddress(newAddress),
     .clearMemory(clearMemory),
     .readMemory(readMemory),
+    .newAddress(newAddress),
     .storageReady(storageReady),
-    .readReady(readReady),
+    .address(address),
+    .readReady(readReady)
     );
 
 endmodule

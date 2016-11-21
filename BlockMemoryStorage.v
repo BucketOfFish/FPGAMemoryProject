@@ -13,11 +13,11 @@ module BlockMemoryStorage(
 // inputs and outputs
 input clock, clearMemory, readMemory, newAddress;
 output reg storageReady, readReady;
-input [ADDRESSNBITS-1:0] address;
+input [ADDRESSBITS-1:0] address;
 
 // address splitting
 reg [ROWINDEXBITS_HNM-1:0] rowIndex = 0;
-reg [COLINDEXBITS-1:0] colIndex = 0;
+reg [COLINDEXBITS_HNM-1:0] colIndex = 0;
 
 // block memory inputs and outputs
 wire enable = 1;
@@ -25,25 +25,25 @@ reg writeEnableA_HNM, writeEnableB_HNM, writeEnableA_HCM, writeEnableB_HCM, writ
 reg [ROWINDEXBITS_HNM-1:0] rowIndexA_HNM, rowIndexB_HNM;
 reg [ROWINDEXBITS_HCM-1:0] rowIndexA_HCM, rowIndexB_HCM;
 reg [ROWINDEXBITS_HLM-1:0] rowIndexA_HLM, rowIndexB_HLM;
-reg [COLINDEXBITS_HNM-1:0] dataInputA_HNM, dataInputB_HNM;
-reg [COLINDEXBITS_HCM-1:0] dataInputA_HCM, dataInputB_HCM;
-reg [COLINDEXBITS_HLM-1:0] dataInputA_HLM, dataInputB_HLM;
-wire [COLINDEXBITS_HNM-1:0] dataOutputA_HNM, dataOutputB_HNM;
-wire [COLINDEXBITS_HCM-1:0] dataOutputA_HCM, dataOutputB_HCM;
-wire [COLINDEXBITS_HLM-1:0] dataOutputA_HLM, dataOutputB_HLM;
+reg [NCOLS_HNM-1:0] dataInputA_HNM, dataInputB_HNM;
+reg [NCOLS_HCM-1:0] dataInputA_HCM, dataInputB_HCM;
+reg [NCOLS_HLM-1:0] dataInputA_HLM, dataInputB_HLM;
+wire [NCOLS_HNM-1:0] dataOutputA_HNM, dataOutputB_HNM;
+wire [NCOLS_HCM-1:0] dataOutputA_HCM, dataOutputB_HCM;
+wire [NCOLS_HLM-1:0] dataOutputA_HLM, dataOutputB_HLM;
 
 // queues used for reading and writing
-reg [COLINDEXBITS_HNM-1:0] queueNewHitsRow1_HNM, queueNewHitsRow2_HNM;
-reg [ROWINDEXBITS_HNM-1:0] queueRowIndex1_HNM, queueRowIndex2_HNM;
+reg [NCOLS_HNM-1:0] queueNewHitsRow1_HNM, queueNewHitsRow2_HNM, queueNewHitsRow3_HNM;
+reg [ROWINDEXBITS_HNM-1:0] queueRowIndex1_HNM, queueRowIndex2_HNM, queueRowIndex3_HNM;
 reg [ROWINDEXBITS_HLM-1:0] queueAddress1_HCM, queueAddress2_HCM;
 reg [MAXHITNBITS-1:0] queueNewHitsN1_HCM, queueNewHitsN2_HCM;
-reg [COLINDEXBITS_HCM-1:0] queueWriteInfo1_HCM, queueWriteInfo2_HCM;
-reg HNMInQueue1, HNMInQueue2, HCMInQueue1, HCMInQueue2;
+reg [NCOLS_HCM-1:0] queueWriteInfo1_HCM, queueWriteInfo2_HCM;
+reg HNMInQueue1, HNMInQueue2, HNMInQueue3, HCMInQueue1, HCMInQueue2;
 
 // variables for tracking reading, writing, and clearing memory
 reg skipNextAddress;
 integer clearingIndex, readingIndex;
-reg [HLMBITS-1:0] nextAvailableHLM;
+reg [ROWINDEXBITS_HLM-1:0] nextAvailableHLM;
 
 initial begin
     storageReady = 1;
@@ -53,8 +53,13 @@ initial begin
     readingIndex = -1;
     writeEnableA_HNM = 0;
     writeEnableB_HNM = 0;
+    writeEnableA_HCM = 0;
+    writeEnableB_HCM = 0;
+    writeEnableA_HLM = 0;
+    writeEnableB_HLM = 0;
     HNMInQueue1 = 0;
     HNMInQueue2 = 0;
+    HNMInQueue3 = 0;
     HCMInQueue1 = 0;
     HCMInQueue2 = 0;
     nextAvailableHLM = 0;
@@ -63,12 +68,16 @@ end
 always @(posedge clock) begin
 
     // split address
-    rowIndex[ROWINDEXBITS_HNM-1:0] <= address[ADDRESSNBITS-1:COLINDEXBITS];
-    colIndex[COLINDEXBITS-1:0] <= address[COLINDEXBITS-1:0];
+    rowIndex[ROWINDEXBITS_HNM-1:0] <= address[ADDRESSBITS-1:COLINDEXBITS_HNM];
+    colIndex[COLINDEXBITS_HNM-1:0] <= address[COLINDEXBITS_HNM-1:0];
 
     // reset everything
     writeEnableA_HNM = 0;
     writeEnableB_HNM = 0;
+    writeEnableA_HCM = 0;
+    writeEnableB_HCM = 0;
+    writeEnableA_HLM = 0;
+    writeEnableB_HLM = 0;
     storageReady = 1;
     readReady = 1;
 
@@ -81,31 +90,15 @@ always @(posedge clock) begin
         rowIndexA_HNM = clearingIndex;
         dataInputA_HNM = 0;
         writeEnableA_HNM = 1;
-        if (clearingIndex < MEMNROWS_HNM-1) begin
+        if (clearingIndex < NROWS_HNM-1) begin
             clearingIndex = clearingIndex + 1;
             rowIndexB_HNM = clearingIndex;
             dataInputB_HNM = 0;
             writeEnableB_HNM = 1;
         end
-        if (clearingIndex >= MEMNROWS_HNM-1) begin
+        if (clearingIndex >= NROWS_HNM-1) begin
             nextAvailableHLM = 0;
             clearingIndex = -1;
-        end
-    end
-
-    // read out the HNM if readMemory goes high - don't read or write during this time
-    // if (readMemory || readingIndex >= 0) begin
-    if (!newAddress && (readReady || readingIndex>=0)) begin
-        storageReady = 0;
-        readReady = 0;
-        if (readingIndex < 0) readingIndex = -1;
-        indexB = readingIndex + 1;
-        readingIndex = indexB;
-        rowIndexB_HNM = readingIndex;
-        if (readingIndex >= MEMNROWS_HNM-1) begin
-            readingIndex = -1;
-            storageReady = 1;
-            readReady = 1;
         end
     end
 
@@ -114,7 +107,7 @@ always @(posedge clock) begin
 
     // store new address - read from B, write from A
     // if there's a new address or something that still needs to be written
-    if (storageReady && (newAddress || HNMInQueue1 || HNMInQueue2 || HCMInQueue1 || HCMInQueue2 || HLMInQueue1 || HLMInQueue2)) begin
+    if (storageReady && (newAddress || HNMInQueue1 || HNMInQueue2 || HNMInQueue3 || HCMInQueue1 || HCMInQueue2)) begin // || HLMInQueue1 || HLMInQueue2)) begin
         storageReady = 0;
         if (!skipNextAddress) begin
 
@@ -122,6 +115,23 @@ always @(posedge clock) begin
             // HNM - whether the hits at SSIDs are new //
             /////////////////////////////////////////////
 
+            // if there's a new address...
+            if (newAddress) begin
+                rowIndexB_HNM = rowIndex;
+                queueRowIndex3_HNM = rowIndex;
+                // if it's in a repeat row
+                if (rowIndex == queueRowIndex1_HNM && HNMInQueue1) begin
+                    queueNewHitsRow1_HNM = queueNewHitsRow1_HNM | 1'b1<<colIndex;
+                end
+                else if (rowIndex == queueRowIndex2_HNM && HNMInQueue2) begin
+                    queueNewHitsRow2_HNM = queueNewHitsRow2_HNM | 1'b1<<colIndex;
+                end
+                // if address is in new row
+                else begin
+                    queueNewHitsRow3_HNM = 1'b1<<colIndex;
+                    HNMInQueue3 = 1;
+                end
+            end
             // write queue1 if it exists
             if (HNMInQueue1) begin
                 rowIndexA_HNM = queueRowIndex1_HNM;
@@ -136,19 +146,11 @@ always @(posedge clock) begin
                 HNMInQueue1 = 1;
                 HNMInQueue2 = 0;
             end
-            // if there's a new address...
-            if (newAddress) begin
-                rowIndexB_HNM = rowIndex;
-                queueRowIndex2_HNM = rowIndex;
-                // if it's in a repeat row
-                if (rowIndex == queueRowIndex1_HNM && HNMInQueue1) begin
-                    queueNewHitsRow1_HNM = queueNewHitsRow1_HNM | 1'b1<<colIndex;
-                end
-                // if address is in new row
-                else begin
-                    queueNewHitsRow2_HNM = 1'b1<<colIndex;
-                    HNMInQueue2 = 1;
-                end
+            if (HNMInQueue3) begin
+                queueRowIndex2_HNM = queueRowIndex3_HNM;
+                queueNewHitsRow2_HNM = queueNewHitsRow3_HNM;
+                HNMInQueue2 = 1;
+                HNMInQueue3 = 0;
             end
 
             ////////////////////////////////////////////////////////////////////////////////////////
@@ -233,6 +235,21 @@ always @(posedge clock) begin
         else skipNextAddress = 0;
         storageReady = 1;
     end
+
+    // read out the HNM if readMemory goes high - don't read or write during this time
+    // if (readMemory || readingIndex >= 0) begin
+    if (!newAddress && (readReady || readingIndex>=0)) begin
+        storageReady = 0;
+        readReady = 0;
+        if (readingIndex < 0) readingIndex = -1;
+        readingIndex = readingIndex + 1;
+        rowIndexB_HNM = readingIndex;
+        if (readingIndex >= NROWS_HNM-1) begin
+            readingIndex = -1;
+            storageReady = 1;
+            readReady = 1;
+        end
+    end
 end
 
 blk_mem_gen_0 HitsNewMemory (
@@ -250,34 +267,34 @@ blk_mem_gen_0 HitsNewMemory (
     .doutb(dataOutputB_HNM)
     );
 
-blk_mem_gen_1 HitsCountMemory (
-    .clka(clock),
-    .ena(enable),
-    .wea(writeEnableA_HCM),
-    .addra(rowIndexA_HCM),
-    .dina(dataInputA_HCM),
-    .douta(dataOutputA_HCM),
-    .clkb(clock),
-    .enb(enable),
-    .web(writeEnableB_HCM),
-    .addrb(rowIndexB_HCM),
-    .dinb(dataInputB_HCM),
-    .doutb(dataOutputB_HCM)
-    );
+//blk_mem_gen_1 HitsCountMemory (
+    //.clka(clock),
+    //.ena(enable),
+    //.wea(writeEnableA_HCM),
+    //.addra(rowIndexA_HCM),
+    //.dina(dataInputA_HCM),
+    //.douta(dataOutputA_HCM),
+    //.clkb(clock),
+    //.enb(enable),
+    //.web(writeEnableB_HCM),
+    //.addrb(rowIndexB_HCM),
+    //.dinb(dataInputB_HCM),
+    //.doutb(dataOutputB_HCM)
+    //);
 
-blk_mem_gen_2 HitsListMemory (
-    .clka(clock),
-    .ena(enable),
-    .wea(writeEnableA_HLM),
-    .addra(rowIndexA_HLM),
-    .dina(dataInputA_HLM),
-    .douta(dataOutputA_HLM),
-    .clkb(clock),
-    .enb(enable),
-    .web(writeEnableB_HLM),
-    .addrb(rowIndexB_HLM),
-    .dinb(dataInputB_HLM),
-    .doutb(dataOutputB_HLM)
-    );
+//blk_mem_gen_2 HitsListMemory (
+    //.clka(clock),
+    //.ena(enable),
+    //.wea(writeEnableA_HLM),
+    //.addra(rowIndexA_HLM),
+    //.dina(dataInputA_HLM),
+    //.douta(dataOutputA_HLM),
+    //.clkb(clock),
+    //.enb(enable),
+    //.web(writeEnableB_HLM),
+    //.addrb(rowIndexB_HLM),
+    //.dinb(dataInputB_HLM),
+    //.doutb(dataOutputB_HLM)
+    //);
 
 endmodule
