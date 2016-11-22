@@ -17,3 +17,5 @@ localparam NROWS_HCM = NROWS_HNM * NCOLS_HNM; //65536
 localparam ROWINDEXBITS_HCM = $clog2(NROWS_HCM); // 16
 localparam SSIDBITS = ROWINDEXBITS_HCM;
 localparam NCOLS_HCM = ROWINDEXBITS_HIM + MAXHITNBITS; // info for number of hits, plus address where first hit is stored
+
+localparam QUEUESIZE = 3;
