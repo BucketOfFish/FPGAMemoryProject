@@ -2,6 +2,7 @@ module AddressCounter(
     clock,
     storageReady,
     SSID,
+    hitInfo,
     newAddress
     );
 
@@ -9,6 +10,7 @@ module AddressCounter(
 
 input clock, storageReady;
 output reg [SSIDBITS-1:0] SSID = -1;
+output reg [NCOLS_HLM-1:0] hitInfo = -1;
 output reg newAddress;
 
 reg alreadyLooped = 0;
@@ -36,6 +38,8 @@ always @(posedge clock) begin
         newAddress = 0; // this particular module is always sending stuff to memory, so right now this is not really necessary.
         count = count+1;
         SSID = {xPos[count], yPos[count]};
+        hitInfo = 0;
+        hitInfo[SSIDBITS-1:0] = SSID;
         if (count >= 22) alreadyLooped = 1;
         newAddress = 1;
     end

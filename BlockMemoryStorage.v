@@ -5,6 +5,7 @@ module BlockMemoryStorage(
     newAddress,
     storageReady,
     SSID,
+    hitInfo,
     readReady
     );
 
@@ -14,6 +15,7 @@ module BlockMemoryStorage(
 input clock, clearMemory, readMemory, newAddress;
 output reg storageReady, readReady;
 input [SSIDBITS-1:0] SSID;
+input [HITINFOBITS-1:0] hitInfo;
 
 // SSID splitting
 reg [ROWINDEXBITS_HNM-1:0] rowIndex = 0;
@@ -37,6 +39,7 @@ reg [NCOLS_HNM-1:0] queueNewHitsRow1_HNM, queueNewHitsRow2_HNM, queueNewHitsRow3
 reg [ROWINDEXBITS_HNM-1:0] queueRowIndex1_HNM, queueRowIndex2_HNM, queueRowIndex3_HNM;
 reg [ROWINDEXBITS_HLM-1:0] queueAddress1_HCM, queueAddress2_HCM, queueAddress3_HCM;
 reg [MAXHITNBITS-1:0] queueNewHitsN1_HCM, queueNewHitsN2_HCM, queueNewHitsN3_HCM;
+reg [NCOLS_HLM-1:0] queueHitInfo1_HLM, queueHitInfo2_HLM, queueHitInfo3_HLM;
 reg HNMInQueue1, HNMInQueue2, HNMInQueue3, HCMInQueue1, HCMInQueue2, HCMInQueue3, SSIDAlreadyHit;
 
 // variables for tracking reading, writing, and clearing memory
@@ -102,7 +105,7 @@ always @(posedge clock) begin
 
     // store new SSID - read from B, write from A
     // if there's a new SSID or something that still needs to be written
-    if (storageReady && (newAddress || HNMInQueue1 || HNMInQueue2 || HNMInQueue3 || HCMInQueue1 || HCMInQueue2 || HCMInQueue3)) begin // || HLMInQueue1 || HLMInQueue2)) begin
+    if (storageReady && (newAddress || HNMInQueue1 || HNMInQueue2 || HNMInQueue3 || HCMInQueue1 || HCMInQueue2 || HCMInQueue3)) begin
 
         storageReady = 0;
 
@@ -130,6 +133,7 @@ always @(posedge clock) begin
 
             ////////////////////////////////////////////////////////////////////////////////////////
             // HCM - how many hits are at each SSID, and the HLM address where the info is stored //
+            // HLM - hit info                                                                     //
             ////////////////////////////////////////////////////////////////////////////////////////
 
             rowIndexB_HCM = SSID;
@@ -137,14 +141,17 @@ always @(posedge clock) begin
             // if it's a repeat SSID, merge
             if (SSID == queueAddress1_HCM && HCMInQueue1) begin
                 queueNewHitsN1_HCM = queueNewHitsN1_HCM + 1;
+                queueHitInfo1_HLM = queueHitInfo1_HLM<<HITINFOBITS | hitInfo;
             end
             else if (SSID == queueAddress2_HCM && HCMInQueue2) begin
                 queueNewHitsN2_HCM = queueNewHitsN2_HCM + 1;
+                queueHitInfo2_HLM = queueHitInfo2_HLM<<HITINFOBITS | hitInfo;
             end
             // if SSID is new, add to end of queue
             else begin
                 queueNewHitsN3_HCM = 1;
                 HCMInQueue3 = 1;
+                queueHitInfo3_HLM = hitInfo;
             end
         end
 
@@ -185,24 +192,40 @@ always @(posedge clock) begin
         // write queue1 if it exists
         if (HCMInQueue1) begin
             rowIndexA_HCM = queueAddress1_HCM;
-            dataInputA_HCM = dataOutputB_HCM + queueNewHitsN1_HCM;
             if (!SSIDAlreadyHit) begin
+                dataInputA_HCM = queueNewHitsN1_HCM;
                 dataInputA_HCM[NCOLS_HCM-1:NCOLS_HCM-ROWINDEXBITS_HLM] = nextAvailableHLMAddress[ROWINDEXBITS_HLM-1:0];
+                rowIndexA_HLM = nextAvailableHLMAddress;
                 nextAvailableHLMAddress = nextAvailableHLMAddress + 1;
+                dataInputA_HLM = queueHitInfo1_HLM;
             end
+            else begin
+                dataInputA_HCM = dataOutputB_HCM + queueNewHitsN1_HCM; // assuming no overflow in number of hits
+                rowIndexA_HLM = dataOutputB_HCM[NCOLS_HCM-1:NCOLS_HCM-ROWINDEXBITS_HLM];
+                // right now the hit info gets overwritten if there's more than three hits in a row, or if hits are non-consecutive.
+                // for an SSID, after reading the HCM to get the HLM address, we could then read the HLM, but that takes too long.
+                //dataInputA_HLM = dataOutputB_HLM<<(HITINFOBITS * queueNewHitsN1_HCM) | queueHitInfo1_HLM;
+                dataInputA_HLM = queueHitInfo1_HLM;
+            end
+            $display("Hits %h", queueNewHitsN1_HCM);
+            $display("SSID %h", queueAddress1_HCM);
+            $display("HLM %h %h", rowIndexA_HLM, queueHitInfo1_HLM);
             writeEnableA_HCM = 1;
+            writeEnableA_HLM = 1;
             HCMInQueue1 = 0;
         end
         // move queue up
         if (HCMInQueue2) begin
             queueAddress1_HCM = queueAddress2_HCM;
             queueNewHitsN1_HCM = queueNewHitsN2_HCM;
+            queueHitInfo1_HLM = queueHitInfo2_HLM;
             HCMInQueue1 = 1;
             HCMInQueue2 = 0;
         end
         if (HCMInQueue3) begin
             queueAddress2_HCM = queueAddress3_HCM;
             queueNewHitsN2_HCM = queueNewHitsN3_HCM;
+            queueHitInfo2_HLM = queueHitInfo3_HLM;
             HCMInQueue2 = 1;
             HCMInQueue3 = 0;
         end
@@ -256,19 +279,19 @@ blk_mem_gen_1 HitsCountMemory (
     .doutb(dataOutputB_HCM)
     );
 
-//blk_mem_gen_2 HitsListMemory (
-    //.clka(clock),
-    //.ena(enable),
-    //.wea(writeEnableA_HLM),
-    //.addra(rowIndexA_HLM),
-    //.dina(dataInputA_HLM),
-    //.douta(dataOutputA_HLM),
-    //.clkb(clock),
-    //.enb(enable),
-    //.web(writeEnableB_HLM),
-    //.addrb(rowIndexB_HLM),
-    //.dinb(dataInputB_HLM),
-    //.doutb(dataOutputB_HLM)
-    //);
+blk_mem_gen_2 HitsListMemory (
+    .clka(clock),
+    .ena(enable),
+    .wea(writeEnableA_HLM),
+    .addra(rowIndexA_HLM),
+    .dina(dataInputA_HLM),
+    .douta(dataOutputA_HLM),
+    .clkb(clock),
+    .enb(enable),
+    .web(writeEnableB_HLM),
+    .addrb(rowIndexB_HLM),
+    .dinb(dataInputB_HLM),
+    .doutb(dataOutputB_HLM)
+    );
 
 endmodule
