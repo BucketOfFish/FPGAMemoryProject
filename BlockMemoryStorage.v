@@ -223,21 +223,6 @@ always @(posedge clock) begin
 
         storageReady = 1;
     end
-
-    // read out the HCM if readMemory goes high - don't read or write during this time
-    // if (readMemory || readingIndex >= 0) begin
-    if (!newAddress && (readReady || readingIndex>=0)) begin
-        storageReady = 0;
-        readReady = 0;
-        if (readingIndex < 0) readingIndex = -1;
-        readingIndex = readingIndex + 1;
-        rowIndexB_HCM = readingIndex;
-        if (readingIndex >= NROWS_HCM-1) begin
-            readingIndex = -1;
-            storageReady = 1;
-            readReady = 1;
-        end
-    end
 end
 
 blk_mem_gen_0 HitsNewMemory (
