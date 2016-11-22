@@ -6,7 +6,7 @@ module Main();
 
 reg clock, clearMemory, readMemory;
 wire [SSIDBITS-1:0] SSID;
-wire [NCOLS_HLM-1:0] hitInfo;
+wire [NCOLS_HIM-1:0] hitInfo;
 wire storageReady, newAddress, readReady;
 reg [31:0] randomArray;
 
