@@ -7,7 +7,7 @@ module Main();
 reg clock, clearMemory;
 wire [SSIDBITS-1:0] SSID;
 wire [NCOLS_HLM-1:0] hitInfo;
-wire storageReady, newAddress;
+wire newAddress;
 reg [31:0] randomArray;
 
 initial begin
@@ -22,7 +22,6 @@ end
 
 AddressCounter newCounter(
     .clock(clock),
-    .storageReady(storageReady),
     .SSID(SSID),
     .hitInfo(hitInfo),
     .newAddress(newAddress)
@@ -32,7 +31,6 @@ BlockMemoryStorage newStorage(
     .clock(clock),
     .clearMemory(clearMemory),
     .newAddress(newAddress),
-    .storageReady(storageReady),
     .SSID(SSID),
     .hitInfo(hitInfo)
     );

@@ -2,7 +2,6 @@ module BlockMemoryStorage(
     clock,
     clearMemory,
     newAddress,
-    storageReady,
     SSID,
     hitInfo
     );
@@ -11,7 +10,6 @@ module BlockMemoryStorage(
 
 // inputs and outputs
 input clock, clearMemory, newAddress;
-output reg storageReady;
 input [SSIDBITS-1:0] SSID;
 input [HITINFOBITS-1:0] hitInfo;
 
@@ -50,7 +48,6 @@ integer clearingIndex, readingIndex, loopIndex;
 reg [ROWINDEXBITS_HLM-1:0] nextAvailableHLMAddress;
 
 initial begin
-    storageReady = 1;
     clearingIndex = -1;
     readingIndex = -1;
     writeEnableA_HNM = 0;
@@ -80,11 +77,9 @@ always @(posedge clock) begin
     writeEnableB_HCM = 0;
     writeEnableA_HLM = 0;
     writeEnableB_HLM = 0;
-    storageReady = 1;
 
     // clear the HNM if clearMemory goes high - don't read or write during this time
     if (clearMemory || clearingIndex >= 0) begin
-        storageReady = 0;
         if (clearingIndex < 0) clearingIndex = -1;
         clearingIndex = clearingIndex + 1;
         rowIndexA_HNM = clearingIndex;
@@ -104,9 +99,7 @@ always @(posedge clock) begin
 
     // store new SSID - read from B, write from A
     // if there's a new SSID or something that still needs to be written
-    if (storageReady && (newAddress || |HNMInQueue || |HCMInQueue || |HLMInQueue)) begin
-
-        storageReady = 0;
+    if (newAddress || |HNMInQueue || |HCMInQueue || |HLMInQueue) begin
 
         // if there's a new SSID, move it into the queue
         if (newAddress) begin
@@ -244,8 +237,6 @@ always @(posedge clock) begin
                 HLMInQueue[loopIndex] = 0;
             end
         end
-
-        storageReady = 1;
     end
 end
 
