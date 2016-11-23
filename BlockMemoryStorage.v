@@ -4,15 +4,14 @@ module BlockMemoryStorage(
     newAddress,
     storageReady,
     SSID,
-    hitInfo,
-    readReady
+    hitInfo
     );
 
 `include "MyParameters.vh"
 
 // inputs and outputs
 input clock, clearMemory, newAddress;
-output reg storageReady, readReady;
+output reg storageReady;
 input [SSIDBITS-1:0] SSID;
 input [HITINFOBITS-1:0] hitInfo;
 
@@ -52,7 +51,6 @@ reg [ROWINDEXBITS_HIM-1:0] nextAvailableHIMAddress;
 
 initial begin
     storageReady = 1;
-    readReady = 1;
     clearingIndex = -1;
     readingIndex = -1;
     writeEnableA_HNM = 0;
@@ -83,12 +81,10 @@ always @(posedge clock) begin
     writeEnableA_HIM = 0;
     writeEnableB_HIM = 0;
     storageReady = 1;
-    readReady = 1;
 
     // clear the HNM if clearMemory goes high - don't read or write during this time
     if (clearMemory || clearingIndex >= 0) begin
         storageReady = 0;
-        readReady = 0;
         if (clearingIndex < 0) clearingIndex = -1;
         clearingIndex = clearingIndex + 1;
         rowIndexA_HNM = clearingIndex;
