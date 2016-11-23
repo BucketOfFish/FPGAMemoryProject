@@ -37,10 +37,14 @@ wire [NCOLS_HIM-1:0] dataOutputA_HIM, dataOutputB_HIM;
 // queues used for reading and writing
 reg [ROWINDEXBITS_HNM-1:0] queueRowIndex_HNM [QUEUESIZE-1:0];
 reg [NCOLS_HNM-1:0] queueNewHitsRow_HNM [QUEUESIZE-1:0];
-reg [ROWINDEXBITS_HIM-1:0] queueAddress_HCM [QUEUESIZE-1:0];
+reg [ROWINDEXBITS_HIM-1:0] queueAddress_HCM [QUEUESIZE-1:0]; // not a typo
 reg [MAXHITNBITS-1:0] queueNewHitsN_HCM [QUEUESIZE-1:0];
+reg [NCOLS_HIM-1:0] queueHitInfo_HCM [QUEUESIZE-1:0]; // not a typo
+reg [ROWINDEXBITS_HIM-1:0] queueAddress_HIM [QUEUESIZE-1:0];
+reg [MAXHITNBITS-1:0] queueNewHitsN_HIM [QUEUESIZE-1:0];
 reg [NCOLS_HIM-1:0] queueHitInfo_HIM [QUEUESIZE-1:0];
-reg [QUEUESIZE-1:0] HNMInQueue, HCMInQueue;
+reg [QUEUESIZE-1:0] queueNewSSID_HIM;
+reg [QUEUESIZE-1:0] HNMInQueue, HCMInQueue, HIMInQueue;
 
 // various tracking variables
 reg SSIDAlreadyHit, loopFound;
@@ -61,6 +65,7 @@ initial begin
     for (loopIndex = 0; loopIndex < QUEUESIZE; loopIndex = loopIndex +1) begin
         HNMInQueue[loopIndex] = 0;
         HCMInQueue[loopIndex] = 0;
+        HIMInQueue[loopIndex] = 0;
     end
     nextAvailableHIMAddress = 0;
 end
@@ -104,7 +109,7 @@ always @(posedge clock) begin
 
     // store new SSID - read from B, write from A
     // if there's a new SSID or something that still needs to be written
-    if (storageReady && (newAddress || |HNMInQueue || |HCMInQueue)) begin
+    if (storageReady && (newAddress || |HNMInQueue || |HCMInQueue || |HIMInQueue)) begin
 
         storageReady = 0;
 
@@ -142,8 +147,8 @@ always @(posedge clock) begin
             for (loopIndex = 0; loopIndex < QUEUESIZE-1; loopIndex = loopIndex +1) begin
                 // if it's a repeat SSID, merge
                 if (SSID == queueAddress_HCM[loopIndex] && HCMInQueue[loopIndex]) begin
+                    queueHitInfo_HCM[loopIndex] = queueHitInfo_HCM[loopIndex]<<HITINFOBITS | hitInfo;
                     queueNewHitsN_HCM[loopIndex] = queueNewHitsN_HCM[loopIndex] + 1;
-                    queueHitInfo_HIM[loopIndex] = queueHitInfo_HIM[loopIndex]<<HITINFOBITS | hitInfo;
                     loopFound = 1;
                 end
             end
@@ -151,7 +156,7 @@ always @(posedge clock) begin
             if (!loopFound) begin
                 queueNewHitsN_HCM[QUEUESIZE-1] = 1;
                 HCMInQueue[QUEUESIZE-1] = 1;
-                queueHitInfo_HIM[QUEUESIZE-1] = hitInfo;
+                queueHitInfo_HCM[QUEUESIZE-1] = hitInfo;
             end
         end
 
@@ -178,7 +183,6 @@ always @(posedge clock) begin
 
         ////////////////////////////////////////////////////////////////////////////////////////
         // HCM - how many hits are at each SSID, and the HIM address where the info is stored //
-        // HIM - hit info                                                                     //
         ////////////////////////////////////////////////////////////////////////////////////////
 
         // if SSID hasn't been hit, use nextAvailableHIMAddress - else use existing address
@@ -191,23 +195,20 @@ always @(posedge clock) begin
             if (!SSIDAlreadyHit) begin
                 dataInputA_HCM = queueNewHitsN_HCM[0];
                 dataInputA_HCM[NCOLS_HCM-1:NCOLS_HCM-ROWINDEXBITS_HIM] = nextAvailableHIMAddress[ROWINDEXBITS_HIM-1:0];
-                rowIndexA_HIM = nextAvailableHIMAddress;
+                queueAddress_HIM[QUEUESIZE-1] = nextAvailableHIMAddress;
                 nextAvailableHIMAddress = nextAvailableHIMAddress + 1;
-                dataInputA_HIM = queueHitInfo_HIM[0];
+                queueNewSSID_HIM[QUEUESIZE-1] = 1;
             end
             else begin
                 dataInputA_HCM = dataOutputB_HCM + queueNewHitsN_HCM[0]; // assuming no overflow in number of hits
-                rowIndexA_HIM = dataOutputB_HCM[NCOLS_HCM-1:NCOLS_HCM-ROWINDEXBITS_HIM];
-                // right now the hit info gets overwritten if there's more than three hits in a row, or if hits are non-consecutive.
-                // for an SSID, after reading the HCM to get the HIM address, we could then read the HIM, but that takes too long.
-                //dataInputA_HIM = dataOutputB_HIM<<(HITINFOBITS * queueNewHitsN_HCM[0]) | queueHitInfo_HIM[0];
-                dataInputA_HIM = queueHitInfo_HIM[0];
+                queueAddress_HIM[QUEUESIZE-1] = dataOutputB_HCM[NCOLS_HCM-1:NCOLS_HCM-ROWINDEXBITS_HIM];
+                queueNewSSID_HIM[QUEUESIZE-1] = 0;
             end
-            $display("Hits %h", queueNewHitsN_HCM[0]);
-            $display("SSID %h", queueAddress_HCM[0]);
-            $display("HIM %h %h", rowIndexA_HIM, queueHitInfo_HIM[0]);
             writeEnableA_HCM = 1;
-            writeEnableA_HIM = 1;
+            rowIndexB_HIM = queueAddress_HIM[QUEUESIZE-1];
+            queueNewHitsN_HIM[QUEUESIZE-1] = queueNewHitsN_HCM[0];
+            queueHitInfo_HIM[QUEUESIZE-1] = queueHitInfo_HCM[0];
+            HIMInQueue[QUEUESIZE-1] = 1;
             HCMInQueue[0] = 0;
         end
         // move queue up
@@ -215,9 +216,37 @@ always @(posedge clock) begin
             if (HCMInQueue[loopIndex]) begin
                 queueAddress_HCM[loopIndex-1] = queueAddress_HCM[loopIndex];
                 queueNewHitsN_HCM[loopIndex-1] = queueNewHitsN_HCM[loopIndex];
-                queueHitInfo_HIM[loopIndex-1] = queueHitInfo_HIM[loopIndex];
+                queueHitInfo_HCM[loopIndex-1] = queueHitInfo_HCM[loopIndex];
                 HCMInQueue[loopIndex-1] = 1;
                 HCMInQueue[loopIndex] = 0;
+            end
+        end
+
+        ////////////////////
+        // HIM - hit info //
+        ////////////////////
+
+        // write queue1 if it exists
+        if (HIMInQueue[0]) begin
+            rowIndexA_HIM = queueAddress_HIM[0];
+            if (queueNewSSID_HIM[0]) begin
+                dataInputA_HIM = queueHitInfo_HIM[0];
+            end
+            else begin
+                dataInputA_HIM = dataOutputB_HIM<<(HITINFOBITS * queueNewHitsN_HIM[0]) | queueHitInfo_HIM[0];
+            end
+            writeEnableA_HIM = 1;
+            HIMInQueue[0] = 0;
+        end
+        // move queue up
+        for (loopIndex = 1; loopIndex < QUEUESIZE; loopIndex = loopIndex +1) begin
+            if (HIMInQueue[loopIndex]) begin
+                queueAddress_HIM[loopIndex-1] = queueAddress_HIM[loopIndex];
+                queueNewHitsN_HIM[loopIndex-1] = queueNewHitsN_HIM[loopIndex];
+                queueHitInfo_HIM[loopIndex-1] = queueHitInfo_HIM[loopIndex];
+                queueNewSSID_HIM[loopIndex-1] = queueNewSSID_HIM[loopIndex];
+                HIMInQueue[loopIndex-1] = 1;
+                HIMInQueue[loopIndex] = 0;
             end
         end
 
