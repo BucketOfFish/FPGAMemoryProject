@@ -10,7 +10,7 @@ module AddressCounter(
 
 input clock, storageReady;
 output reg [SSIDBITS-1:0] SSID = -1;
-output reg [NCOLS_HIM-1:0] hitInfo = -1;
+output reg [NCOLS_HLM-1:0] hitInfo = -1;
 output reg newAddress;
 
 reg alreadyLooped = 0;
