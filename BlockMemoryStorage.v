@@ -71,7 +71,7 @@ always @(posedge clock) begin
     writeEnableA_HLM = 0;
     writeEnableB_HLM = 0;
 
-    // clear the HNM if clearMemory goes high - don't read or write during this time
+    // clear the HNM and reset queue if clearMemory goes high
     if (clearMemory || clearingIndex >= 0) begin
         if (clearingIndex < 0) clearingIndex = -1;
         clearingIndex = clearingIndex + 1;
