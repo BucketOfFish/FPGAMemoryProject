@@ -26,7 +26,6 @@ reg alreadyLooped = 0;
 //end
 
 // loops through all SSIDs in array
-// bugs -  HNM ignores last SSID, HCM ignores first
 reg [3:0] xPos[22:0] = {0, 3, 7, 8, 8, 8, 5, 11, 11, 7, 1, 7, 5, 15, 8, 12, 4, 4, 7, 2, 1, 13, 6};
 reg [3:0] yPos[22:0] = {0, 3, 12, 4, 3, 8, 8, 8, 11, 12, 12, 12, 3, 3, 1, 1, 12, 7, 7, 11, 15, 0, 4};
 integer count = -1;
