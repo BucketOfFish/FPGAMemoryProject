@@ -1,5 +1,5 @@
-localparam NROWS_HNM = 16; //128;
-localparam NCOLS_HNM = 16; //512;
+localparam NROWS_HNM = 128;
+localparam NCOLS_HNM = 512;
 localparam ROWINDEXBITS_HNM = $clog2(NROWS_HNM); // 7
 localparam COLINDEXBITS_HNM = $clog2(NCOLS_HNM); // 9
 
@@ -8,9 +8,7 @@ localparam MAXHITNBITS = $clog2(MAXHITN); // 2
 
 localparam NROWS_HLM = 2048; // can store this many hits per event
 localparam ROWINDEXBITS_HLM = $clog2(NROWS_HLM); // 11
-/*localparam HITINFOBITS = 32; // information stored about hit*/
-/*localparam NCOLS_HLM = HITINFOBITS * MAXHITN;*/
-localparam HITINFOBITS = 8; // information stored about hit
+localparam HITINFOBITS = 32; // information stored about hit
 localparam NCOLS_HLM = HITINFOBITS * MAXHITN;
 
 localparam NROWS_HCM = NROWS_HNM * NCOLS_HNM; //65536
