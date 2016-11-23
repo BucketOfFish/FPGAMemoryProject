@@ -1,7 +1,6 @@
 module BlockMemoryStorage(
     clock,
     clearMemory,
-    readMemory,
     newAddress,
     storageReady,
     SSID,
@@ -12,7 +11,7 @@ module BlockMemoryStorage(
 `include "MyParameters.vh"
 
 // inputs and outputs
-input clock, clearMemory, readMemory, newAddress;
+input clock, clearMemory, newAddress;
 output reg storageReady, readReady;
 input [SSIDBITS-1:0] SSID;
 input [HITINFOBITS-1:0] hitInfo;

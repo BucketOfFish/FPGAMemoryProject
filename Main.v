@@ -4,7 +4,7 @@ module Main();
 
 `include "MyParameters.vh"
 
-reg clock, clearMemory, readMemory;
+reg clock, clearMemory;
 wire [SSIDBITS-1:0] SSID;
 wire [NCOLS_HIM-1:0] hitInfo;
 wire storageReady, newAddress, readReady;
@@ -13,7 +13,6 @@ reg [31:0] randomArray;
 initial begin
     clock <= 1;
     clearMemory <= 1;
-    readMemory <= 0;
 end
 
 always begin
@@ -32,7 +31,6 @@ AddressCounter newCounter(
 BlockMemoryStorage newStorage(
     .clock(clock),
     .clearMemory(clearMemory),
-    .readMemory(readMemory),
     .newAddress(newAddress),
     .storageReady(storageReady),
     .SSID(SSID),
