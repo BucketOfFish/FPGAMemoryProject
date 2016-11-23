@@ -279,7 +279,7 @@ blk_mem_gen_1 HitsCountMemory (
     .doutb(dataOutputB_HCM)
     );
 
-blk_mem_gen_2 HitsListMemory (
+blk_mem_gen_2 HitsInfoMemory (
     .clka(clock),
     .ena(enable),
     .wea(writeEnableA_HIM),
