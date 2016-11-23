@@ -44,18 +44,11 @@ reg [QUEUESIZE-1:0] HNMInQueue, HCMInQueue, HLMInQueue;
 
 // various tracking variables
 reg SSIDAlreadyHit, loopFound;
-integer clearingIndex, readingIndex, loopIndex;
+integer clearingIndex, loopIndex;
 reg [ROWINDEXBITS_HLM-1:0] nextAvailableHLMAddress;
 
 initial begin
     clearingIndex = -1;
-    readingIndex = -1;
-    writeEnableA_HNM = 0;
-    writeEnableB_HNM = 0;
-    writeEnableA_HCM = 0;
-    writeEnableB_HCM = 0;
-    writeEnableA_HLM = 0;
-    writeEnableB_HLM = 0;
     for (loopIndex = 0; loopIndex < QUEUESIZE; loopIndex = loopIndex +1) begin
         HNMInQueue[loopIndex] = 0;
         HCMInQueue[loopIndex] = 0;
@@ -92,6 +85,11 @@ always @(posedge clock) begin
             writeEnableB_HNM = 1;
         end
         if (clearingIndex >= NROWS_HNM-1) begin
+            for (loopIndex = 0; loopIndex < QUEUESIZE; loopIndex = loopIndex +1) begin
+                HNMInQueue[loopIndex] = 0;
+                HCMInQueue[loopIndex] = 0;
+                HLMInQueue[loopIndex] = 0;
+            end
             nextAvailableHLMAddress = 0;
             clearingIndex = -1;
         end
