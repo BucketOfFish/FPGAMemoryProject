@@ -33,7 +33,7 @@ wire [NCOLS_HLM-1:0] dataOutputA_HLM, dataOutputB_HLM;
 // queues used for reading and writing
 reg [ROWINDEXBITS_HNM-1:0] queueRowIndex_HNM [QUEUESIZE-1:0];
 reg [NCOLS_HNM-1:0] queueNewHitsRow_HNM [QUEUESIZE-1:0];
-reg [ROWINDEXBITS_HLM-1:0] queueAddress_HCM [QUEUESIZE-1:0]; // not a typo
+reg [ROWINDEXBITS_HCM-1:0] queueAddress_HCM [QUEUESIZE-1:0];
 reg [MAXHITNBITS-1:0] queueNewHitsN_HCM [QUEUESIZE-1:0];
 reg [NCOLS_HLM-1:0] queueHitInfo_HCM [QUEUESIZE-1:0]; // not a typo
 reg [ROWINDEXBITS_HLM-1:0] queueAddress_HLM [QUEUESIZE-1:0];
